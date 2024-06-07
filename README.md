@@ -1,2 +1,2 @@
 # Fertilization_ABM
-Agent based model built in Netlogo. Simulates fertilization and quantitates mutual (non-sequence) information exchanged between sperm and egg.
+This repository accompanies: 'Modeling Diffusive Search by Non-Adaptive Sperm: Empirical and Computational Insights'
