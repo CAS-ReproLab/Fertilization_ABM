@@ -10,7 +10,7 @@ Agent-based models written in the Netlogo programming language (V6.3.0)-
 5. Figure 6- Model used for measuring search time and efficiency for populations of sperm with Poisson distributed intracellular calcium oscillation frequencies.
 6. Figure 7- Model used for generating tabular data for the Python analysis framework detailed below. 
 
-Python scripts used for data analysis and modeling.
+Python (V3.9.10) scripts used for data analysis and modeling.
 1. Markov_Transitions.ipynb- Jupyter notebook that demonstrates how the Markov transition table used in the study was generated.
 2. Analysis framework for determining the posterior distribution and relative information gain (KL divergence) from .csv files containing simulation data written out from a Netlogo simulation.
 
