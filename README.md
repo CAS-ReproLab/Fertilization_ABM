@@ -7,7 +7,9 @@ Agent-based models written in the Netlogo programming language (V6.3.0)-
 2. Figure 2- Model used for movement function parameterization
 3. Figure 3- Model used for measuring collective search properties of sperm populations with varying motility state proportions
 4. Figure 4- Model used for drawing and saving maze environments. Includes folder of mazes used in the publication simulations (.txt files). Note: to load the mazes using corresponding ABMs, the maze file must be in the working directory, and must be named 'File IO PATCH DATA.txt'. To run using the .txt files in this repository, remove the additional file name text. For example, change File IO PATCH DATA_Maze_A.txt to File IO PATCH DATA.txt
-5. Figure 6- 
+5. Figure 6- Model used for measuring search time and efficiency for populations of sperm with Poisson distributed intracellular calcium oscillation frequencies.
+6. Figure 7- Model used for generating tabular data for the Python analysis framework detailed below. 
+
 Python scripts used for data analysis and modeling.
 1. Markov_Transitions.ipynb- Jupyter notebook that demonstrates how the Markov transition table used in the study was generated.
 2. Analysis framework for determining the posterior distribution and relative information gain (KL divergence) from .csv files containing simulation data written out from a Netlogo simulation.
