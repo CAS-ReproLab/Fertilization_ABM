@@ -1,17 +1,15 @@
-;; V5_Updates to include removal of defined motility 'types'. Instead, only one initial population and individuals are defined by a 'predictor' variable that determines the Markov Transition probabilities for motility state.
-;; Used in Figure 6 to explore the 'causes' of selection.
-
+;; V4_Updates include: only recording the first and last ticks of the simulation for writing out the .csv files. Updated the write-turtle-data function to only include sperms.
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;;Turtle Breeds;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;
 breed[sperms sperm]
-breed [eggs egg]
+breed [markers marker]
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; global variables ;;
 ;;;;;;;;;;;;;;;;;;;;;;
-globals [time len RMSD patch-data]
+globals [time len RMSD patch-data final_path final_freq total_egg_contact_time egg_contact_threshold deltaT stepT]
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; turtle variables ;;
@@ -36,6 +34,7 @@ turtles-own
   intra_Ca ; Represents intracellular Ca2+ concentration; Acts as a predictor of motility state by modifying the state transition probabilities; 0.0-1.0 max; Increased intra_Ca causes transition to hyperactive state.
   freq
   egg_contact_time
+  visited-patches
 ]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -49,19 +48,10 @@ to setup
   show-patch-data
   set-patch-size 10
 
-  create-sperms num_turtles
-
-  ;; Create an egg turtle, though it is non-functional and only serves to cover the egg patch as a circle (for visual appeal)
-  create-eggs 1[
-    set color gray
-    set shape "circle"
-    set size 3
-    setxy xcor 8
-    setxy ycor -13
-  ]
+  create-sperms num_sperms
 
   ;; Create the egg patch that the sperm can interact with to record the contacts. It sits directly underneath the egg turtle
-  ask patches with [pxcor = 8 and pycor = -13]
+  ask patches with [pxcor = egg_xcor and pycor = egg_ycor]
   [set pcolor gray]
 
   ask sperms [
@@ -72,20 +62,20 @@ to setup
     set size 0.3
     set color white
     ifelse rand_coordinate = True [ setxy -16 + (random-float 32) -16 + (random-float 32)] ; Can choose starting spatial distribution of sperm within the grid space using the GUI button
-    [setxy -16 + (random-float 6) -16 + (random-float 32)] ; Can choose starting spatial distribution of sperm within the defined grid space
-    ;[setxy input_xcor input_ycor]  ; Allows input a point starting position from GUI.
+    ;[setxy -16 + (random-float 6) -16 + (random-float 32)] ; Can choose starting spatial distribution of sperm within the defined grid space
+    [setxy sperm_xcor sperm_ycor]  ; Allows input a point starting position from GUI.
     set init_x xcor
     set init_y ycor
     set path_len 0
     set last_heading heading
     set ALH 0
-    ;set freq precision (random-normal 3 1) 1 ; These options allow the user to define the statistical distribution from which the freq variable is drawn. Precision allows for limiting the float precision to have fewer bins.
+    ;set freq precision (random-normal 2 0.5) 1 ; These options allow the user to define the statistical distribution from which the freq variable is drawn. Precision allows for limiting the float precision to have fewer bins.
     ;set freq precision (1 + random-float 100) 1 ; Draws from a uniform distribution between 1 and N + 1
     ;set freq precision (random-gamma 1 .5) 1
-    ;set freq precision (random-exponential 3) 1
-    ;set freq int random-exponential 3 ; int changes the random number to an integer rather than a float.
-    set freq precision (random-poisson 3) 1
+    ;set freq precision (random-exponential 2) 1
+    set freq precision (random-poisson dist_mean) 1
     set egg_contact_time 0 ; initialize the sperm contact time with the egg at 0.
+    set visited-patches (list patch-here)  ; Initialize storing visited patches for path reconstruction with the current patch
   ]
 
   set len 40 ; initialize the length variable
@@ -100,14 +90,20 @@ to setup
 
   set time 0 ; initialize the time variable
 
+  set final_freq 0 ; initialize the final_freq variable
+
+  set egg_contact_threshold 5 ; Egg contact time threshold to end simulation (in seconds)
+
+  set total_egg_contact_time 0
+
   ;; The following lines facilitate creating/writing individual sperm data to a csv file.Uncomment in setup and go loops
   ;; Make sure headings in setup match the variables identified in the function definition
 
   if record = True [
-  let random-extension random 100
+  let random-extension random 1000
   let filename (word "sim_data_" random-extension ".csv")
   file-open filename ; Name of .csv file, will write to current model directory
-  file-write "tick, turtle_id, motility_state, xcor, ycor, step_len, path_len, VSL, VCL, VAP, ALH, intra_Ca, freq"  ; Headers for CSV file
+  file-write "tick, turtle_id, motility_state, xcor, ycor, freq, egg_contact_time"  ; Headers for CSV file
   file-print ""  ; Newline
   ]
 
@@ -119,25 +115,46 @@ end
 ;;;;;;;;;;;;;;;;;;;;;
 
 to go
-  if not any? patches with [pcolor = black] [clear-drawing close-file stop]
-  if not any? turtles with [motility_state = "progressive"] [clear-drawing close-file stop]
+  update_total_egg_contact_time
+
+  ; Write turtle data at the first tick
+  if ticks = 0 and record = True [
+    write-sperm-data
+  ]
+
+  ; Simulation termination conditions
+  if total_egg_contact_time >= egg_contact_threshold [
+    add-markers-to-visited-patches
+    ask sperms [
+      if [pcolor] of patch-here != red
+        [set color grey - 2]
+    ]
+    ask sperms with [ [pcolor] of patch-here = gray ] [
+      set final_path final_path + (path_len * len)
+      set final_freq freq + freq
+    ]
+
+    ; Write turtle data at the last tick just before stopping
+    if record = True [
+      write-sperm-data
+    ]
+
+    close-file
+    stop
+  ]
+
   set time time + (1 / 25.4) ;; (seconds) Assuming the sperm cross the central path at a frequency of 25.4 Hz, each tick is then 1/25.4 seconds.
   ask sperms [
     ifelse draw = True [pen-down] [pen-up]
-    ;if pcolor = 9.9999 [set color black] ; what is this for?
     set intra_Ca (sin (freq * time)) ^ 2
   ]
-    markov_move
-    state_transition
+  ifelse markov_model = True [markov_move state_transition]
+    [markov_move]
     update_RMSD
-  ;export-view (word ticks ".png") ;; Exports ticks as images for making a Gif saves to directory where the model is loaded from. Uncomment to run..
-  ;export-interface (word "interface_" ticks ".png") ; Can be used to save the whole interface as a .png. This can then be cropped to make a gif of specific plots if desired.
 
-  if record = True [
-  write-turtle-data ; Uncomment to write turtle data to a .csv for conversion to a data frame
-  ]
-    tick
+  tick
 end
+
 
 ;;;;;;;;;;;;;;;;
 ;; Procedures ;;
@@ -150,11 +167,12 @@ to progressive-motility
   set current_x xcor ; Set current position
   set current_y ycor
 
-  ifelse ticks mod 2 = 0 [rt 15 + (random (90 - 15))] [rt -15 + (random (-90 + 15))]
-  set step_len 0.25 + (random-float (0.30 - 0.25))
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 15 + 37.5 + 75.0 / 2.0 / sqrt (3.0) / sqrt(deltaT) * sqrt(stepT) * (random-normal 0 1.0) ) ; MM: this is the Gaussian noise-based integration of algorithm for angle
+  set step_len (0.25 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0)); MM: this is the Gaussian noise-based integration of algorithm for translation
    set path_len path_len + step_len
   ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.01]
   [fd step_len]
+  set visited-patches lput patch-here visited-patches
 
   update_sq_dsp ; squared displacement
   update_VSL ; straight line velocity
@@ -169,11 +187,12 @@ to intermediate-motility
   set current_x xcor
   set current_y ycor
   ;set intermediate_angle 85 + (random (200 - 85))
-  ifelse ticks mod 2 = 0 [rt 100 + (random (140 - 100))] [rt -100 + (random (-140 + 100))]
-  set step_len 0.4 + (random-float (0.425 - 0.4))
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 100 + 20 + 40.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  set step_len (0.4 + 0.0125 + 0.025 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.01]
   [fd step_len]
+  set visited-patches lput patch-here visited-patches
   update_sq_dsp ; squared displacement
   update_VSL ; straight line velocity
   update_VCL ; curvilinear velocity
@@ -185,11 +204,12 @@ end
 to hyperactive-motility
   set current_x xcor
   set current_y ycor
-  ifelse random-float 1.00 < 0.6 [rt 90 + (random (180 - 90))] [lt -90 + (random (-180 + 90))]
-  set step_len 0.35 + (random-float (0.45 - 0.35))
+  rt ( 180 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  set step_len (0.35 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.01]
   [fd step_len]
+  set visited-patches lput patch-here visited-patches
 
   update_sq_dsp ; squared displacement
   update_VSL ; straight line velocity
@@ -202,11 +222,12 @@ end
 to slow-motility
   set current_x xcor
   set current_y ycor
-  ifelse ticks mod 2 = 0 [rt 90 + (random (240 - 90))] [rt -90 + (random (-240 + 90))]
-  set step_len 0.1 + (random-float (0.2 - 0.1))
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 75 + 150.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  set step_len (0.1 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.01]
   [fd step_len]
+  set visited-patches lput patch-here visited-patches
 
   update_sq_dsp ; squared displacement
   update_VSL ; straight line velocity
@@ -219,11 +240,12 @@ end
 to weak-motility
   set current_x xcor
   set current_y ycor
-  ifelse ticks mod 2 = 0 [rt 90 + (random (270 - 90))] [rt -90 + (random (-270 + 90))]
-  set step_len 0.075 + (random-float (0.125 - 0.075))
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 90 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  set step_len (0.075 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.01]
   [fd step_len]
+  set visited-patches lput patch-here visited-patches
 
   update_sq_dsp ; squared displacement
   update_VSL ; straight line velocity
@@ -344,9 +366,45 @@ to update_ALH
 end
 
 to update_egg_contact_time
-  if pcolor = gray [set egg_contact_time egg_contact_time + 1 / 25]
+  if pcolor = gray [set egg_contact_time egg_contact_time + (1 / 25.4)]
 end
 
+to update_total_egg_contact_time
+  set total_egg_contact_time sum [egg_contact_time] of sperms
+end
+
+to add-markers-to-visited-patches
+  ask sperms with [ [pcolor] of patch-here = gray ] [
+      let longest_contact_sperm one-of sperms-here with [egg_contact_time = max [egg_contact_time] of sperms-here]
+      ask longest_contact_sperm [
+      let total length visited-patches
+      let index 0
+      let last-marker nobody
+
+      foreach visited-patches [current-patch ->
+        ask current-patch [
+          if not any? markers-here with [shape = "dot"] [
+            sprout-markers 1 [
+              set shape "dot"
+              let base-color red
+              let color-range 4
+              let scaled-color-value (color-range * (index / (total - 1)))
+              set color scale-color base-color scaled-color-value -5 5
+              set size 1
+            ]
+            let new-marker one-of markers-here with [shape = "dot"]
+;            if last-marker != nobody [   ;uncomment to include links between traceback points
+;              ask last-marker [ create-link-with new-marker [ set color grey - 2] ]
+;            ]
+            set last-marker new-marker
+          ]
+        ]
+        set index index + 1
+      ]
+    ]
+  ]
+
+end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -397,9 +455,9 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; This procedure writes individual sperm agent variable values out to a .csv file for import to a dataframe if desired
 
-to write-turtle-data
-  ask turtles [
-    let data (word ticks "," who ", \"" motility_state "\"," xcor "," ycor "," step_len "," path_len "," VSL "," VCL "," VAP "," ALH "," intra_Ca "," freq) ; list the variables, must match the column headings determined in setup
+to write-sperm-data
+  ask sperms [
+    let data (word ticks "," who ", \"" motility_state "\"," xcor "," ycor "," freq "," egg_contact_time) ; list the variables, must match the column headings determined in setup
     file-print data
   ]
 end
@@ -599,8 +657,8 @@ INPUTBOX
 217
 176
 277
-input_xcor
-0.0
+sperm_xcor
+-15.0
 1
 0
 Number
@@ -610,8 +668,8 @@ INPUTBOX
 285
 176
 345
-input_ycor
-0.0
+sperm_ycor
+15.0
 1
 0
 Number
@@ -665,106 +723,28 @@ Count Agents
 10.0
 true
 false
-"set-histogram-num-bars sqrt(num_turtles)" ""
+"" ""
 PENS
 "default" 1.0 1 -16777216 true "" "histogram [ALH] of turtles"
 
 SWITCH
-25
-350
-172
-383
+431
+381
+578
+414
 rand_coordinate
 rand_coordinate
 1
 1
 -1000
 
-PLOT
-1341
-168
-1541
-318
-Positional Counts
-NIL
-NIL
-0.0
-10.0
-0.0
-1.0
-true
-false
-"" ""
-PENS
-"Progressive_qi" 1.0 0 -14070903 true "" "plot (count turtles with [xcor > lower_bound and xcor < upper_bound])"
-"Total" 1.0 0 -7500403 true "" "plot (count turtles with [xcor < 0 and xcor > -16])"
-
-PLOT
-1342
-336
-1542
-486
-X Posit. Hist
-NIL
-NIL
-0.0
-32.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"Sperm_As" 1.0 1 -13345367 true "" "histogram [max-pxcor + xcor] of turtles"
-
-PLOT
-1112
-10
-1312
-160
-Count (each segment)
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"Right" 1.0 0 -13345367 true "" "plot count turtles with [xcor > lower_bound and xcor < upper_bound] "
-"Left" 1.0 0 -2674135 true "" "plot count turtles with [xcor < 0 and xcor > -16] "
-
-INPUTBOX
-1363
-16
-1518
-76
-Lower_bound
-1.0
-1
-0
-Number
-
-INPUTBOX
-1363
-84
-1518
-144
-upper_bound
-16.0
-1
-0
-Number
-
 INPUTBOX
 21
 150
 176
 210
-num_turtles
-1000.0
+num_sperms
+100.0
 1
 0
 Number
@@ -804,45 +784,9 @@ NIL
 10.0
 true
 false
-"set-histogram-num-bars sqrt(num_turtles)" ""
+"" ""
 PENS
 "default" 1.0 1 -16777216 true "" "histogram [freq] of turtles"
-
-PLOT
-1333
-507
-1533
-657
-Right Freq Hist
-NIL
-NIL
-0.0
-20.0
-0.0
-1.0
-true
-false
-"set-histogram-num-bars sqrt(num_turtles)" ""
-PENS
-"default" 1.0 1 -16777216 true "" "histogram [freq] of turtles with [ xcor > lower_bound and xcor <= upper_bound]"
-
-PLOT
-1123
-507
-1323
-657
-Left Freq Hist
-NIL
-NIL
-0.0
-20.0
-0.0
-10.0
-true
-false
-"set-histogram-num-bars sqrt(num_turtles)" ""
-PENS
-"default" 1.0 1 -16777216 true "" "histogram [freq] of turtles with [ xcor < lower_bound and xcor >= (- upper_bound)]"
 
 BUTTON
 329
@@ -862,34 +806,15 @@ NIL
 1
 
 SWITCH
-47
-390
-150
+216
 423
+319
+456
 record
 record
-1
+0
 1
 -1000
-
-PLOT
-1549
-11
-1749
-161
-Median Osc. Freq
-NIL
-NIL
-0.0
-10.0
-0.0
-1.0
-true
-true
-"" ""
-PENS
-"Right" 1.0 0 -13345367 true "" "plot median [freq] of turtles with [xcor > lower_bound and xcor < upper_bound]"
-"Left" 1.0 0 -2674135 true "" "plot median [freq] of turtles with [xcor < 0 and xcor > -16]"
 
 BUTTON
 209
@@ -909,29 +834,10 @@ NIL
 1
 
 PLOT
-1550
-168
-1750
-318
-Max Osc. Freq
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"Right" 1.0 0 -13345367 true "" "plot max [freq] of turtles with [xcor > lower_bound and xcor < upper_bound]"
-"Left" 1.0 0 -2674135 true "" "plot max [freq] of turtles with [xcor < 0 and xcor > -16]"
-
-PLOT
-1555
-338
-1755
-488
+1116
+10
+1316
+160
 Max egg contact time (s)
 NIL
 NIL
@@ -943,26 +849,69 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot max [egg_contact_time] of sperms"
+"default" 1.0 0 -16777216 true "" "plot total_egg_contact_time"
 
 PLOT
-1555
+1121
 506
-1755
+1321
 656
-Osc. Freq. Params of Contacting Sperms
+Count of Sperms that Make Contact
 NIL
 NIL
 0.0
 10.0
 0.0
-10.0
+20.0
 true
 true
 "" ""
 PENS
-"Median" 1.0 0 -955883 true "" "plot median [freq] of sperms with [egg_contact_time > 0]"
-"Max" 1.0 0 -5825686 true "" "plot max [freq] of sperms with [egg_contact_time > 0]"
+"pen-0" 1.0 0 -7500403 true "" "plot count sperms with [egg_contact_time > 0]"
+
+SWITCH
+336
+423
+474
+456
+markov_model
+markov_model
+0
+1
+-1000
+
+INPUTBOX
+25
+503
+180
+563
+dist_mean
+1.0
+1
+0
+Number
+
+INPUTBOX
+21
+358
+176
+418
+egg_xcor
+15.0
+1
+0
+Number
+
+INPUTBOX
+23
+429
+178
+489
+egg_ycor
+-15.0
+1
+0
+Number
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1322,92 +1271,44 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.3.0
+NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="experiment" repetitions="1" runMetricsEveryStep="true">
+  <experiment name="experiment" repetitions="100" runMetricsEveryStep="true">
     <setup>setup</setup>
     <go>go</go>
-    <metric>median [VCL] of turtles</metric>
-    <metric>median [VAP] of turtles</metric>
-    <metric>median [VSL] of turtles</metric>
-    <metric>RMSD</metric>
-    <metric>time</metric>
-    <enumeratedValueSet variable="state_duration">
-      <value value="5"/>
+    <metric>count turtles</metric>
+    <enumeratedValueSet variable="markov_model">
+      <value value="true"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Ds">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="rand_coordinate">
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Bs">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="input_xcor">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_As">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Es">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <steppedValueSet variable="num_sperm_Cs" first="0" step="1" last="80"/>
-    <enumeratedValueSet variable="draw">
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="input_ycor">
-      <value value="0"/>
-    </enumeratedValueSet>
-  </experiment>
-  <experiment name="experiment" repetitions="250" sequentialRunOrder="false" runMetricsEveryStep="false">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>count Sperm_As with [xcor &gt; lower_bound and xcor &lt; upper_bound]</metric>
-    <metric>count Sperm_Bs with [xcor &gt; lower_bound and xcor &lt; upper_bound]</metric>
-    <metric>count Sperm_Cs with [xcor &gt; lower_bound and xcor &lt; upper_bound]</metric>
-    <metric>count Sperm_Ds with [xcor &gt; lower_bound and xcor &lt; upper_bound]</metric>
-    <metric>count Sperm_Es with [xcor &gt; lower_bound and xcor &lt; upper_bound]</metric>
-    <metric>count turtles with [xcor &gt; lower_bound and xcor &lt; upper_bound]</metric>
-    <enumeratedValueSet variable="state_duration">
+    <enumeratedValueSet variable="num_sperms">
       <value value="100"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Ds">
-      <value value="50"/>
-    </enumeratedValueSet>
     <enumeratedValueSet variable="rand_coordinate">
       <value value="false"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Bs">
-      <value value="50"/>
+    <enumeratedValueSet variable="sperm_ycor">
+      <value value="15"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="input_xcor">
-      <value value="0"/>
+    <enumeratedValueSet variable="egg_ycor">
+      <value value="-15"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="Lower_bound">
-      <value value="0"/>
+    <enumeratedValueSet variable="sperm_xcor">
+      <value value="-15"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_As">
-      <value value="50"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="upper_bound">
-      <value value="16"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Es">
-      <value value="50"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Cs">
-      <value value="50"/>
+    <enumeratedValueSet variable="record">
+      <value value="true"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="draw">
       <value value="false"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="input_ycor">
-      <value value="0"/>
+    <enumeratedValueSet variable="dist_mean">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="egg_xcor">
+      <value value="15"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>

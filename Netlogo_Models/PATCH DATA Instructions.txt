@@ -1,0 +1,5 @@
+# Instructions for loading mazes in netlogo models Updated 28Dec24
+
+# The file import function in the models will only look for the filename 'File IO PATCH DATA.txt'
+
+# To load a maze file, delete the 'Maze*' text from the filename. 

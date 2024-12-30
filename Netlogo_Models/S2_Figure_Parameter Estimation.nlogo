@@ -1,4 +1,3 @@
-;; V4_Updates to include calculation of VSL, VCL, VAP, ALH, and RMSD
 ;; Used in Figure 2 for parameterization of the movement functions.
 
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -14,7 +13,7 @@ breed [sperm_Es sperm_E]
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; global variables ;;
 ;;;;;;;;;;;;;;;;;;;;;;
-globals [time len RMSD patch-data]
+globals [time len RMSD deltaT stepT]
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; turtle variables ;;
@@ -44,22 +43,19 @@ turtles-own
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 to setup
 
-  clear-all
-
-  load-patch-data ;; loads patch data from a file in the model directory called 'File IO Patch Data'
-  show-patch-data
+ clear-all
 
    create-sperm_As num_sperm_As
    ask sperm_As [
-    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"] ; Choose starting state at random
-    set motility_state "progressive" ; Can set motility_state to specified value if desired
-    ;set color blue
+    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"] ; Uncomment to choose starting state at random
+    set motility_state "progressive" ; Can change motility_state to specified string if desired
+    ;set color blue ; Uncomment to assign distinct color to different motility states
 
   ]
 
    create-sperm_Bs num_sperm_Bs
    ask sperm_Bs [
-    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"]  ; Can choose different options for starting motility- randomized or all the same (lines below).
+    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"]
     set motility_state "intermediate"
     ;set color green
 
@@ -67,7 +63,7 @@ to setup
 
     create-sperm_Cs num_sperm_Cs
    ask sperm_Cs [
-    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"]  ; Can choose different options for starting motility- randomized or all the same (lines below).
+    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"]
     set motility_state "hyperactive"
     ;set color green
 
@@ -75,7 +71,7 @@ to setup
 
      create-sperm_Ds num_sperm_Ds
    ask sperm_Ds [
-    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"]  ; Can choose different options for starting motility- randomized or all the same (lines below).
+    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"]
     set motility_state "slow"
     ;set color green
 
@@ -83,8 +79,8 @@ to setup
 
      create-sperm_Es num_sperm_Es
    ask sperm_Es [
-    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"] ; Choose starting state at random
-    set motility_state "weak" ; Can set motility_state to specified value if desired
+    ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"]
+    set motility_state "weak"
     ;set color blue
 
   ]
@@ -93,9 +89,8 @@ to setup
     set shape "circle"
     set size 0.3
     set color white
-    ifelse rand_coordinate = True [ setxy -16 + (random-float 32) -16 + (random-float 32)] ; Can choose starting spatial distribution of sperm within the grid space using the GUI button
-    [setxy input_xcor input_ycor]  ; Allows input a point starting position from GUI.
-    ;[setxy -16 + (random-float 32) -16 + (random-float 32)] ; Can choose starting spatial distribution of sperm within the defined grid space
+    ifelse rand_coordinate = True [setxy random-xcor random-ycor] ; Can choose starting spatial distribution of sperm within the grid space using the GUI button
+    [setxy input_xcor input_ycor]  ; Allows input on starting position from GUI.
     set init_x xcor
     set init_y ycor
     set path_len 0
@@ -124,15 +119,14 @@ end
 to go
   if not any? patches with [pcolor = black] [clear-drawing stop]
   ask turtles [
-    ifelse draw = True [pen-down] [pen-up]
-    if pcolor = 9.9999 [set color black]]
+    ifelse draw = True [pen-down] [pen-up]]
     set time time + (1 / 25.4) ;; (seconds) Assuming the sperm cross the central path at a frequency of 25.4 Hz, each tick is then 1/25.4 seconds.
     markov_move
-    ;state_transition_sperm_As ; Uncomment to use markov transitions
-    ;state_transition_sperm_Bs
-    ;state_transition_sperm_Cs
-    ;state_transition_sperm_Ds
-    ;state_transition_sperm_Es
+    state_transition_sperm_As
+    state_transition_sperm_Bs
+    state_transition_sperm_Cs
+    state_transition_sperm_Ds
+    state_transition_sperm_Es
     update_RMSD
   ;export-view (word ticks ".png") ;; Exports ticks as images for making a Gif saves to directory where the model is loaded from. Uncomment to run..
   tick
@@ -152,11 +146,13 @@ to progressive-motility
   set current_x xcor ; Set current position
   set current_y ycor
 
-  ifelse ticks mod 2 = 0 [rt 15 + (random (90 - 15))] [rt -15 + (random (-90 + 15))]
-  set step_len 0.25 + (random-float (0.30 - 0.25))
-   set path_len path_len + step_len
-  ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.1]
-  [fd step_len]
+  ;ifelse ticks mod 2 = 0 [rt 15 + (random (90 - 15))] [rt -15 + (random (-90 + 15))]
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 15 + 37.5 + 75.0 / 2.0 / sqrt (3.0) / sqrt(deltaT) * sqrt(stepT) * (random-normal 0 1.0) ) ; MM: this is the Gaussian noise-based integration of algorithm for angle
+  ;set step_len 0.25 + (random-float (0.30 - 0.25))
+  set step_len (0.25 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0)); MM: this is the Gaussian noise-based integration of algorithm for translation
+
+  set path_len path_len + step_len
+  fd step_len
 
   update_RSD ; Root square displacement
   update_VSL ; straight line velocity
@@ -171,11 +167,12 @@ to intermediate-motility
   set current_y ycor
   update_RSD
   ;set intermediate_angle 85 + (random (200 - 85))
-  ifelse ticks mod 2 = 0 [rt 100 + (random (140 - 100))] [rt -100 + (random (-140 + 100))]
-  set step_len 0.4 + (random-float (0.425 - 0.4))
+  ;ifelse ticks mod 2 = 0 [rt 100 + (random (140 - 100))] [rt -100 + (random (-140 + 100))]
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 100 + 20 + 40.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  ;set step_len 0.4 + (random-float (0.425 - 0.4))
+    set step_len (0.4 + 0.0125 + 0.025 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
-  ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.1]
-  [fd step_len]
+  fd step_len
 
   update_RSD ; Root square displacement
   update_VSL ; straight line velocity
@@ -188,11 +185,12 @@ to hyperactive-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ifelse random-float 1.00 < 0.6 [rt 90 + (random (180 - 90))] [lt -90 + (random (-180 + 90))]
-  set step_len 0.35 + (random-float (0.45 - 0.35))
+  ;ifelse random-float 1.00 < 0.6 [rt 90 + (random (180 - 90))] [lt -90 + (random (-180 + 90))]
+  rt ( 180 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  ;set step_len 0.35 + (random-float (0.45 - 0.35))
+  set step_len (0.35 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
-  ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.1]
-  [fd step_len]
+  fd step_len
 
   update_RSD ; Root square displacement
   update_VSL ; straight line velocity
@@ -205,11 +203,12 @@ to slow-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ifelse ticks mod 2 = 0 [rt 90 + (random (240 - 90))] [rt -90 + (random (-240 + 90))]
-  set step_len 0.1 + (random-float (0.2 - 0.1))
+  ;ifelse ticks mod 2 = 0 [rt 90 + (random (240 - 90))] [rt -90 + (random (-240 + 90))]
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 75 + 150.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  ;set step_len 0.1 + (random-float (0.2 - 0.1))
+  set step_len (0.1 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
-  ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.1]
-  [fd step_len]
+  fd step_len
 
   update_RSD ; Root square displacement
   update_VSL ; straight line velocity
@@ -222,11 +221,12 @@ to weak-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ifelse ticks mod 2 = 0 [rt 90 + (random (270 - 90))] [rt -90 + (random (-270 + 90))]
-  set step_len 0.075 + (random-float (0.125 - 0.075))
-    set path_len path_len + step_len
-  ifelse [pcolor] of patch-ahead step_len = 9.9999 [set heading ( heading - 180) fd 0.1]
-  [fd step_len]
+  ;ifelse ticks mod 2 = 0 [rt 90 + (random (270 - 90))] [rt -90 + (random (-270 + 90))]
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 90 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
+  ;set step_len 0.075 + (random-float (0.125 - 0.075))
+  set step_len (0.075 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
+      set path_len path_len + step_len
+  fd step_len
 
   update_RSD ; Root square displacement
   update_VSL ; straight line velocity
@@ -238,7 +238,7 @@ end
 ;; Markov Models For Subpopulations ;;
 
 to state_transition_sperm_As ; primarily progressive (based on current transition matrix)
-  if ticks mod state_duration = 0 [ ; allows setting state transitions that only happen ever 'state_duration' number of ticks
+  if ticks mod state_duration = 0 [ ; allows setting state transitions that only happen over 'state_duration' number of ticks
   ask sperm_As
   [
   let rand_num random-float 1.00
@@ -431,11 +431,11 @@ end
 
 to markov_move
   ask turtles [
-  ;set color scale-color orange VCL 150 450
+  ;set color scale-color orange VCL 150 450 ; uncomment to set color scale to curvilinear velocity (VCL)
   if motility_state = "progressive"
   [
       progressive-motility
-      ;set color blue
+      ;set color blue ; uncomment to set color by motility state.
     ]
   if motility_state = "intermediate"
   [
@@ -504,52 +504,6 @@ to update_ALH
   if denominator != 0 [
   let dist (abs (A * xcor + B * ycor + C)) / (sqrt (A ^ 2 + B ^ 2))
   set ALH (ALH * time + dist) / (time + (1 / 25.5))] ; Averaging the ALH over time
-end
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-; This procedure loads in patch data from a file.  The format of the file is: pxcor
-; pycor pcolor.  You can view the file by opening the file File IO Patch Data.txt
-; using a simple text editor.  Note that it automatically loads the file "File IO
-; Patch Data.txt". To have the user choose their own file, see load-own-patch-data.
-to load-patch-data
-
-  ; We check to make sure the file exists first
-  ifelse ( file-exists? "File IO Patch Data.txt" )
-  [
-    ; We are saving the data into a list, so it only needs to be loaded once.
-    set patch-data []
-
-    ; This opens the file, so we can use it.
-    file-open "File IO Patch Data.txt"
-
-    ; Read in all the data in the file
-    while [ not file-at-end? ]
-    [
-      ; file-read gives you variables.  In this case numbers.
-      ; We store them in a double list (ex [[1 1 9.9999] [1 2 9.9999] ...
-      ; Each iteration we append the next three-tuple to the current list
-      set patch-data sentence patch-data (list (list file-read file-read file-read))
-    ]
-
-    ;user-message "File loading complete!"
-
-    ; Done reading in patch information.  Close the file.
-    file-close
-  ]
-  [ user-message "There is no File IO Patch Data.txt file in current directory!" ]
-end
-
-; This procedure will use the loaded in patch data to color the patches.
-; The list is a list of three-tuples where the first item is the pxcor, the
-; second is the pycor, and the third is pcolor. Ex. [ [ 0 0 5 ] [ 1 34 26 ] ... ]
-to show-patch-data
-  ;clear-patches
-  ;clear-turtles
-  ifelse ( is-list? patch-data )
-    [ foreach patch-data [ three-tuple -> ask patch first three-tuple item 1 three-tuple [ set pcolor last three-tuple ] ] ]
-    [ user-message "You need to load in patch data first!" ]
-  display
 end
 
 ;; Code below this point on Github is automatically deposited and is related to the configuration of buttons and defaults in the Netlogo environment.
@@ -622,7 +576,7 @@ SWITCH
 514
 draw
 draw
-0
+1
 1
 -1000
 
@@ -634,8 +588,8 @@ SLIDER
 num_sperm_As
 num_sperm_As
 0
-250
-50.0
+1000
+0.0
 1
 1
 cells
@@ -649,8 +603,8 @@ SLIDER
 num_sperm_Bs
 num_sperm_Bs
 0
-250
-50.0
+1000
+0.0
 1
 1
 cells
@@ -664,8 +618,8 @@ SLIDER
 num_sperm_Cs
 num_sperm_Cs
 0
-250
-50.0
+1000
+0.0
 1
 1
 cells
@@ -697,8 +651,8 @@ SLIDER
 state_duration
 state_duration
 1
-100
-5.0
+1000
+1.0
 1
 1
 ticks
@@ -756,7 +710,7 @@ true
 true
 "" ""
 PENS
-"Progressive" 1.0 0 -13345367 true "" "plot count turtles with [motility_state = \"progressive\"]  "
+"Progressive" 1.0 0 -13345367 true "" "plot count turtles with [motility_state = \"progressive\"]"
 "Intermediate" 1.0 0 -10899396 true "" "plot count turtles with [motility_state = \"intermediate\"]"
 "Hyperactive" 1.0 0 -1184463 true "" "plot count turtles with [motility_state = \"hyperactive\"]"
 "Slow" 1.0 0 -955883 true "" "plot count turtles with [motility_state = \"slow\"]"
@@ -845,8 +799,8 @@ SLIDER
 num_sperm_Ds
 num_sperm_Ds
 0
-250
-50.0
+1000
+0.0
 1
 1
 cells
@@ -860,8 +814,8 @@ SLIDER
 num_sperm_Es
 num_sperm_Es
 0
-250
-50.0
+1000
+20.0
 1
 1
 cells
@@ -876,7 +830,7 @@ RSD (All)
 NIL
 NIL
 0.0
-1000.0
+100.0
 0.0
 20.0
 false
@@ -935,51 +889,6 @@ rand_coordinate
 0
 1
 -1000
-
-PLOT
-1341
-11
-1541
-161
-VAP (Right Side)
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"set-plot-x-range 0 300\nset-plot-y-range 0 10 ;(num_sperm_As + num_sperm_Bs)\nset-histogram-num-bars (count turtles)" ""
-PENS
-"default" 1.0 1 -16777216 true "" "histogram [VAP] of turtles with [xcor > 0]"
-
-PLOT
-1341
-168
-1541
-318
-Relative Frequencies (Pre/Post)
-NIL
-NIL
-0.0
-10.0
-0.0
-1.0
-true
-false
-"" ""
-PENS
-"Progressive_q" 1.0 0 -2674135 true "" "plot count turtles with [motility_state = \"progressive\" and xcor < 0] / count turtles with [xcor < 0]"
-"Progressive_qi" 1.0 0 -1604481 true "" "if count turtles with [xcor > 1] > 0 [plot count turtles with [motility_state = \"progressive\" and xcor > 1] / count turtles with [xcor > 1]]"
-"Intermediate_q" 1.0 0 -13840069 true "" "plot count turtles with [motility_state = \"intermediate\" and xcor < 0] / count turtles with [xcor < 0]"
-"Intermediate_qi" 1.0 0 -5509967 true "" "if count turtles with [xcor > 1] > 0 [plot count turtles with [motility_state = \"intermediate\" and xcor > 1] / count turtles with [xcor > 1]]"
-"hyperactive_q" 1.0 0 -1184463 true "" "plot count turtles with [motility_state = \"hyperactive\" and xcor < 0] / count turtles with [xcor < 0]"
-"hyperactive_qi" 1.0 0 -263210 true "" "if count turtles with [xcor > 1] > 0 [plot count turtles with [motility_state = \"hyperactive\" and xcor > 1] / count turtles with [xcor > 1]]"
-"slow_q" 1.0 0 -955883 true "" "plot count turtles with [motility_state = \"slow\" and xcor < 0] / count turtles with [xcor < 0]"
-"slow_qi" 1.0 0 -204336 true "" "if count turtles with [xcor > 1] > 0 [plot count turtles with [motility_state = \"slow\" and xcor > 1] / count turtles with [xcor > 1]]"
-"weak_q" 1.0 0 -2674135 true "" "plot count turtles with [motility_state = \"weak\" and xcor < 0] / count turtles with [xcor < 0]"
-"weak_qi" 1.0 0 -1604481 true "" "if count turtles with [xcor > 1] > 0 [plot count turtles with [motility_state = \"weak\" and xcor > 1] / count turtles with [xcor > 1]]"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1343,45 +1252,6 @@ NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
-<experiments>
-  <experiment name="experiment" repetitions="1" runMetricsEveryStep="true">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>median [VCL] of turtles</metric>
-    <metric>median [VAP] of turtles</metric>
-    <metric>median [VSL] of turtles</metric>
-    <metric>RMSD</metric>
-    <metric>time</metric>
-    <enumeratedValueSet variable="state_duration">
-      <value value="5"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Ds">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="rand_coordinate">
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Bs">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="input_xcor">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_As">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="num_sperm_Es">
-      <value value="10"/>
-    </enumeratedValueSet>
-    <steppedValueSet variable="num_sperm_Cs" first="0" step="1" last="80"/>
-    <enumeratedValueSet variable="draw">
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="input_ycor">
-      <value value="0"/>
-    </enumeratedValueSet>
-  </experiment>
-</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
