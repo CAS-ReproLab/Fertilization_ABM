@@ -46,9 +46,6 @@ to setup
 
   clear-all
 
-  load-patch-data ;; loads patch data from a file in the model directory called 'File IO Patch Data'
-  show-patch-data
-
    create-sperm_As num_sperm_As
    ask sperm_As [
     ;set motility_state one-of [ "progressive" "hyperactive" "intermediate" "slow" "weak"] ; Choose starting state at random
@@ -113,6 +110,8 @@ to setup
   ;; Example: at len 10 a step_len of 1 is 10 um. At len 20 a step_len of 0.5 is 10 um. At len 40 step_len = .25 is 10 um
 
   set time 0 ; initialize the time variable
+  set deltaT 1 / 25.4 ; here the time scale is set
+  set stepT deltaT ; stepT is the time integration step in eq. of motion. It is set to match the time-scale, but they can be different in general
 
  reset-ticks
 end
@@ -152,9 +151,7 @@ to progressive-motility
   set current_x xcor ; Set current position
   set current_y ycor
 
-  ;ifelse ticks mod 2 = 0 [rt 15 + (random (90 - 15))] [rt -15 + (random (-90 + 15))]
   rt ( (-1) ^ ( ticks mod 2 ) ) * ( 15 + 37.5 + 75.0 / 2.0 / sqrt (3.0) / sqrt(deltaT) * sqrt(stepT) * (random-normal 0 1.0) ) ; MM: this is the Gaussian noise-based integration of algorithm for angle
-  ;set step_len 0.25 + (random-float (0.30 - 0.25))
   set step_len (0.25 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0)); MM: this is the Gaussian noise-based integration of algorithm for translation
 
   set path_len path_len + step_len
@@ -172,10 +169,7 @@ to intermediate-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ;set intermediate_angle 85 + (random (200 - 85))
-  ;ifelse ticks mod 2 = 0 [rt 100 + (random (140 - 100))] [rt -100 + (random (-140 + 100))]
   rt ( (-1) ^ ( ticks mod 2 ) ) * ( 100 + 20 + 40.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
-  ;set step_len 0.4 + (random-float (0.425 - 0.4))
     set step_len (0.4 + 0.0125 + 0.025 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   fd step_len
@@ -191,9 +185,7 @@ to hyperactive-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ;ifelse random-float 1.00 < 0.6 [rt 90 + (random (180 - 90))] [lt -90 + (random (-180 + 90))]
   rt ( 180 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
-  ;set step_len 0.35 + (random-float (0.45 - 0.35))
   set step_len (0.35 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   fd step_len
@@ -209,9 +201,7 @@ to slow-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ;ifelse ticks mod 2 = 0 [rt 90 + (random (240 - 90))] [rt -90 + (random (-240 + 90))]
   rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 75 + 150.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
-  ;set step_len 0.1 + (random-float (0.2 - 0.1))
   set step_len (0.1 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   fd step_len
@@ -227,9 +217,7 @@ to weak-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ;ifelse ticks mod 2 = 0 [rt 90 + (random (270 - 90))] [rt -90 + (random (-270 + 90))]
   rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 90 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
-  ;set step_len 0.075 + (random-float (0.125 - 0.075))
   set step_len (0.075 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
       set path_len path_len + step_len
   fd step_len
@@ -512,51 +500,6 @@ to update_ALH
   set ALH (ALH * time + dist) / (time + (1 / 25.5))] ; Averaging the ALH over time
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-; This procedure loads in patch data from a file.  The format of the file is: pxcor
-; pycor pcolor.  You can view the file by opening the file File IO Patch Data.txt
-; using a simple text editor.  Note that it automatically loads the file "File IO
-; Patch Data.txt". To have the user choose their own file, see load-own-patch-data.
-to load-patch-data
-
-  ; We check to make sure the file exists first
-  ifelse ( file-exists? "File IO Patch Data.txt" )
-  [
-    ; We are saving the data into a list, so it only needs to be loaded once.
-    set patch-data []
-
-    ; This opens the file, so we can use it.
-    file-open "File IO Patch Data.txt"
-
-    ; Read in all the data in the file
-    while [ not file-at-end? ]
-    [
-      ; file-read gives you variables.  In this case numbers.
-      ; We store them in a double list (ex [[1 1 9.9999] [1 2 9.9999] ...
-      ; Each iteration we append the next three-tuple to the current list
-      set patch-data sentence patch-data (list (list file-read file-read file-read))
-    ]
-
-    ;user-message "File loading complete!"
-
-    ; Done reading in patch information.  Close the file.
-    file-close
-  ]
-  [ user-message "There is no File IO Patch Data.txt file in current directory!" ]
-end
-
-; This procedure will use the loaded in patch data to color the patches.
-; The list is a list of three-tuples where the first item is the pxcor, the
-; second is the pycor, and the third is pcolor. Ex. [ [ 0 0 5 ] [ 1 34 26 ] ... ]
-to show-patch-data
-  ;clear-patches
-  ;clear-turtles
-  ifelse ( is-list? patch-data )
-    [ foreach patch-data [ three-tuple -> ask patch first three-tuple item 1 three-tuple [ set pcolor last three-tuple ] ] ]
-    [ user-message "You need to load in patch data first!" ]
-  display
-end
 
 ;; Code below this point on Github is automatically deposited and is related to the configuration of buttons and defaults in the Netlogo environment.
 @#$#@#$#@

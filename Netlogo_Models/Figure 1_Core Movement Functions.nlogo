@@ -1,4 +1,4 @@
-;; Used in Figure 2 for parameterization of the movement functions.
+;; Model 1: Used in Figures 1 and 2 for exploring core properties of movement functions and fitting movement parameters to empirical data.
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; types of turtles ;;
@@ -13,7 +13,7 @@ breed [sperm_Es sperm_E]
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; global variables ;;
 ;;;;;;;;;;;;;;;;;;;;;;
-globals [time len RMSD deltaT stepT]
+globals [time len RMSD searchProgress deltaT stepT] ; MM: added deltaT as the time-scale variable and stepT as the explicit time-step of integration in eq. of motion, with Gaussian noise implemented, stepT can be varied and the results should remain consistent
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; turtle variables ;;
@@ -108,6 +108,9 @@ to setup
   ;; Example: at len 10 a step_len of 1 is 10 um. At len 20 a step_len of 0.5 is 10 um. At len 40 step_len = .25 is 10 um
 
   set time 0 ; initialize the time variable
+  set deltaT 1 / 25.4 ; MM: here the time scale is set
+  set stepT deltaT ; MM: stepT is the time integration step in eq. of motion. It is set to match the time-scale, but they can be different in general
+
 
  reset-ticks
 end
@@ -120,7 +123,8 @@ to go
   if not any? patches with [pcolor = black] [clear-drawing stop]
   ask turtles [
     ifelse draw = True [pen-down] [pen-up]]
-    set time time + (1 / 25.4) ;; (seconds) Assuming the sperm cross the central path at a frequency of 25.4 Hz, each tick is then 1/25.4 seconds.
+    ;set time time + (1 / 25.4) ;; (seconds) Assuming the sperm cross the central path at a frequency of 25.4 Hz, each tick is then 1/25.4 seconds.
+    set time time + stepT ; MM: use stepT to update time (it is now equal deltaT, but could be different)
     markov_move
     state_transition_sperm_As
     state_transition_sperm_Bs
@@ -129,6 +133,7 @@ to go
     state_transition_sperm_Es
     update_RMSD
   ;export-view (word ticks ".png") ;; Exports ticks as images for making a Gif saves to directory where the model is loaded from. Uncomment to run..
+  set searchProgress (((count patches with [pcolor = 0.1]) / (count patches)) * 100)
   tick
 end
 
@@ -146,10 +151,9 @@ to progressive-motility
   set current_x xcor ; Set current position
   set current_y ycor
 
-  ;ifelse ticks mod 2 = 0 [rt 15 + (random (90 - 15))] [rt -15 + (random (-90 + 15))]
-  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 15 + 37.5 + 75.0 / 2.0 / sqrt (3.0) / sqrt(deltaT) * sqrt(stepT) * (random-normal 0 1.0) ) ; MM: this is the Gaussian noise-based integration of algorithm for angle
-  ;set step_len 0.25 + (random-float (0.30 - 0.25))
-  set step_len (0.25 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0)); MM: this is the Gaussian noise-based integration of algorithm for translation
+
+  rt ( (-1) ^ ( ticks mod 2 ) ) * ( 15 + 37.5 + 75.0 / 2.0 / sqrt (3) / sqrt(deltaT) * sqrt(stepT) * (random-normal 0 1.0) ) ; this is the Gaussian noise-based integration of algorithm for angle
+  set step_len (0.25 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0)); this is the Gaussian noise-based integration of algorithm for translation
 
   set path_len path_len + step_len
   fd step_len
@@ -185,9 +189,7 @@ to hyperactive-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ;ifelse random-float 1.00 < 0.6 [rt 90 + (random (180 - 90))] [lt -90 + (random (-180 + 90))]
   rt ( 180 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
-  ;set step_len 0.35 + (random-float (0.45 - 0.35))
   set step_len (0.35 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   fd step_len
@@ -203,9 +205,7 @@ to slow-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ;ifelse ticks mod 2 = 0 [rt 90 + (random (240 - 90))] [rt -90 + (random (-240 + 90))]
   rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 75 + 150.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
-  ;set step_len 0.1 + (random-float (0.2 - 0.1))
   set step_len (0.1 + 0.05 + 0.1 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
   fd step_len
@@ -221,9 +221,7 @@ to weak-motility
   set current_x xcor
   set current_y ycor
   update_RSD
-  ;ifelse ticks mod 2 = 0 [rt 90 + (random (270 - 90))] [rt -90 + (random (-270 + 90))]
   rt ( (-1) ^ ( ticks mod 2 ) ) * ( 90 + 90 + 180.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
-  ;set step_len 0.075 + (random-float (0.125 - 0.075))
   set step_len (0.075 + 0.025 + 0.05 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
       set path_len path_len + step_len
   fd step_len
@@ -576,7 +574,7 @@ SWITCH
 514
 draw
 draw
-1
+0
 1
 -1000
 
@@ -641,7 +639,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot ((count patches with [pcolor = 0.1]) / (count patches)) * 100"
+"default" 1.0 0 -16777216 true "" "plot searchProgress"
 
 SLIDER
 2
@@ -777,8 +775,8 @@ Number
 BUTTON
 124
 10
-198
-43
+206
+44
 go (50)
 if ticks < 50 [go]
 T
@@ -815,7 +813,7 @@ num_sperm_Es
 num_sperm_Es
 0
 1000
-20.0
+50.0
 1
 1
 cells
@@ -1252,6 +1250,44 @@ NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="experiment" repetitions="100" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>RMSD</metric>
+    <metric>searchProgress</metric>
+    <enumeratedValueSet variable="state_duration">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num_sperm_Ds">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="rand_coordinate">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num_sperm_Bs">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="input_xcor">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num_sperm_As">
+      <value value="53"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num_sperm_Es">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num_sperm_Cs">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="draw">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="input_ycor">
+      <value value="0"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default

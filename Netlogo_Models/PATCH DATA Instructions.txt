@@ -1,5 +1,7 @@
-# Instructions for loading mazes in netlogo models Updated 28Dec24
+Instructions for loading mazes in netlogo models Updated 28Dec24
 
-# The file import function in the models will only look for the filename 'File IO PATCH DATA.txt'
+The file import function in the model 'Figures 3_8 Main Model' will only look for the filename 'File IO PATCH DATA.txt'
 
-# To load a maze file, delete the 'Maze*' text from the filename. 
+To load a specific maze file, delete the 'Maze*' text from the filename.
+
+There is a File IO PATCH DATA.txt file included in this repository to ensure that the program runs on startup with a default open space (Maze A). 

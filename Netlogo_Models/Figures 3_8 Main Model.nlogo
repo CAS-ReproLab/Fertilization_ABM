@@ -1,4 +1,4 @@
-;; V4_Updates include: only recording the first and last ticks of the simulation for writing out the .csv files. Updated the write-turtle-data function to only include sperms.
+;; This model is the primary model to accompany the manuscript. Includes: import of maze environments, specification of sperm intracellular calcium frequency, simulated contact with an egg, and data export for tabular analysis.
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;;Turtle Breeds;;;;;;;
@@ -89,6 +89,10 @@ to setup
   ;; mouse sperm pronucleus.
 
   set time 0 ; initialize the time variable
+
+  set deltaT 1 / 25.4 ; MM: here the time scale is set
+
+  set stepT deltaT ; MM: stepT is the time integration step in eq. of motion. It is set to match the time-scale, but they can be different in general
 
   set final_freq 0 ; initialize the final_freq variable
 
@@ -186,7 +190,6 @@ end
 to intermediate-motility
   set current_x xcor
   set current_y ycor
-  ;set intermediate_angle 85 + (random (200 - 85))
   rt ( (-1) ^ ( ticks mod 2 ) ) * ( 100 + 20 + 40.0 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0) )
   set step_len (0.4 + 0.0125 + 0.025 / 2.0 / sqrt (3.0) / sqrt (deltaT) * sqrt(stepT) * (random-normal 0 1.0))
     set path_len path_len + step_len
@@ -812,7 +815,7 @@ SWITCH
 456
 record
 record
-0
+1
 1
 -1000
 
