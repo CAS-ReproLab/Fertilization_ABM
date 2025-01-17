@@ -1,14 +1,12 @@
 # Fertilization_ABM
-This repository accompanies: 'Modeling Diffusive Search by Non-Adaptive Sperm: Empirical and Computational Insights' (https://www.biorxiv.org/content/10.1101/2024.06.17.599386v1)
+This repository accompanies: 'Modeling Diffusive Search by Non-Adaptive Sperm: Empirical and Computational Insights' (doi: https://doi.org/10.1101/2024.06.17.599386)
 
-The Programs consist of: 
+The Netlogo Programs consist of: 
 Agent-based models written in the Netlogo programming language (V6.3.0)-
-1. Figure 1- Simulation of random walks
-2. Figure 2- Model used for movement function parameterization
-3. Figure 3- Model used for measuring collective search properties of sperm populations with varying motility state proportions
-4. Figure 4- Model used for drawing and saving maze environments. Includes folder of mazes used in the publication simulations (.txt files). Note: to load the mazes using corresponding ABMs, the maze file must be in the working directory, and must be named 'File IO PATCH DATA.txt'. To run using the .txt files in this repository, remove the additional file name text. For example, change File IO PATCH DATA_Maze_A.txt to File IO PATCH DATA.txt
-5. Figure 6- Model used for measuring search time and efficiency for populations of sperm with Poisson distributed intracellular calcium oscillation frequencies.
-6. Figure 7- Model used for generating tabular data for the Python analysis framework detailed below. 
+1. Model to accompany Figure 1: Simulations to illustrate the core movement functions.
+2. Model to accompany Figure 2: Simulations to illustrate basic ensemble search properties of sperm with various motility types.
+3. Model to accompany Figure 3-8: Simulations to explore sperm search for an egg as a function of microenvironmental complexity, distribuion of sperm motility phenotypes, change in motility types over time, and export of simulation data for statistical analysis.
+4. Mazes Folder- Includes folder of mazes used in the publication simulations (.txt files). Note: to load the mazes using corresponding ABMs, the maze file must be in the working directory, and must be named 'File IO PATCH DATA.txt'. To run using the .txt files in this repository, remove the additional file name text. For example, change File IO PATCH DATA_Maze_A.txt to File IO PATCH DATA.txt
 
 Python (V3.9.10) scripts used for data analysis and modeling.
 1. Markov_Transitions.ipynb- Jupyter notebook that demonstrates how the Markov transition table used in the study was generated.
